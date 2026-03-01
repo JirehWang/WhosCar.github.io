@@ -3,124 +3,90 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>極速車牌搜尋</title>
-  <script src="https://cdn.jsdelivr.net/npm/@paddlejs/paddlejs-core@1.1.0/dist/index.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@paddlejs/paddlejs-backend-webgl@1.1.0/dist/index.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@paddlejs/paddlejs-ocr@1.1.0/dist/index.min.js"></script>
+  <title>車主搜尋 - 穩定版</title>
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
   <style>
-    body { font-family: sans-serif; margin: 0; background: #f0f2f5; text-align: center; }
-    .header { background: #3f51b5; color: white; padding: 15px; font-size: 20px; font-weight: bold; }
-    .main-box { padding: 20px; }
-    .ocr-trigger { 
-      background: #ff4081; color: white; padding: 15px 30px; 
-      border-radius: 50px; font-size: 18px; cursor: pointer;
-      display: inline-block; box-shadow: 0 4px 10px rgba(0,0,0,0.2);
-    }
-    #status { margin-top: 10px; color: #666; font-size: 14px; }
-    #resultArea { 
-      margin: 20px; background: white; border-radius: 10px; 
-      padding: 15px; display: none; text-align: left;
-      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-    }
-    .loading-dot { display: inline-block; width: 8px; height: 8px; background: #3f51b5; border-radius: 50%; animation: blink 1s infinite; }
-    @keyframes blink { 0%, 100% { opacity: 0.2; } 50% { opacity: 1; } }
+    body { font-family: sans-serif; background: #f4f4f4; text-align: center; padding: 20px; }
+    .btn { background: #2196F3; color: white; padding: 15px 30px; border-radius: 5px; cursor: pointer; display: inline-block; font-size: 18px; }
+    #status { margin: 15px; color: #666; font-weight: bold; }
+    #result { margin-top: 20px; background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); display: none; text-align: left; }
+    /* 隱藏除錯用的畫布 */
+    #processedCanvas { display: none; max-width: 100%; border: 1px solid #000; }
   </style>
 </head>
 <body>
-  <div class="header">巡邏車主查找系統 (v3-Light)</div>
+  <h2>車主聯絡資料查詢</h2>
   
-  <div class="main-box">
-    <label for="camInput" class="ocr-trigger">📷 拍車牌</label>
-    <input type="file" id="camInput" accept="image/*" capture="environment" style="display: none;" onchange="doLightOCR(this)">
-    <div id="status">系統初始化中...</div>
-  </div>
-
-  <div id="resultArea"></div>
+  <label for="cam" class="btn">📷 拍照/上傳辨識</label>
+  <input type="file" id="cam" accept="image/*" capture="environment" style="display: none;" onchange="processImage(this)">
+  
+  <div id="status">系統就緒</div>
+  <canvas id="processedCanvas"></canvas> <div id="result"></div>
 
   <script>
     const API_URL = "你的_GAS_URL";
-    let ocr = null;
 
-    // 初始化：載入輕量化模型
-async function init() {
-  const status = document.getElementById("status");
-  console.log("1. 開始檢查庫是否載入...");
-  
-  try {
-    if (typeof ocr === 'undefined') throw new Error("PaddleOCR 腳本沒載入成功");
-    console.log("2. 腳本存在，開始建立實例...");
-    
-    ocrEngine = new ocr(); 
-    
-    console.log("3. 正在嘗試連線模型伺服器...");
-    // 這裡我們手動指定一個比較穩定的 CDN 來源
-    await ocrEngine.init(); 
-    
-    console.log("4. 初始化完成！");
-    status.innerText = "✅ 系統就緒";
-  } catch (e) {
-    console.error("❌ 偵錯訊息:", e);
-    status.innerText = "❌ 失敗原因: " + e.message;
-  }
-}
-
-    async function doLightOCR(input) {
-      if (!ocr || !input.files[0]) return;
-      
-      const status = document.getElementById("status");
-      const resArea = document.getElementById("resultArea");
-      status.innerHTML = "⚡ 正在辨識 <span class='loading-dot'></span>";
-      resArea.style.display = "none";
-
+    async function processImage(input) {
       const file = input.files[0];
+      if (!file) return;
+
+      const status = document.getElementById("status");
+      status.innerText = "⏳ 影像強化中...";
+
       const img = new Image();
       img.onload = async () => {
-        // --- 預處理：稍微縮小圖片提升手機運算速度 ---
-        const canvas = document.createElement('canvas');
-        const maxSide = 800; // 限制最大邊長
-        let w = img.width, h = img.height;
-        if (w > h && w > maxSide) { h = (maxSide/w)*h; w = maxSide; }
-        else if (h > maxSide) { w = (maxSide/h)*w; h = maxSide; }
-        canvas.width = w; canvas.height = h;
-        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        const canvas = document.getElementById("processedCanvas");
+        const ctx = canvas.getContext("2d");
 
-        const result = await ocr.recognize(canvas);
+        // 1. 影像預處理：縮小並轉為「極致黑白」
+        const scale = 800 / img.width;
+        canvas.width = 800;
+        canvas.height = img.height * scale;
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const data = imageData.data;
         
-        if (result && result.length > 0) {
-          // 串接所有辨識到的字塊
-          const fullText = result.map(r => r.text).join("").toUpperCase();
-          // 改進的正則：支持更廣泛的車牌格式 (含橫槓或純數字)
-          const match = fullText.match(/[A-Z0-9]{2,4}-?[A-Z0-9]{2,4}/);
-          
-          if (match) {
-            const plate = match[0].replace("-", "");
-            status.innerText = "✅ 辨識到：" + match[0];
-            searchGAS(plate);
-          } else {
-            status.innerText = "❓ 辨識到文字但不像車牌：" + fullText;
-          }
+        for (let i = 0; i < data.length; i += 4) {
+          const brightness = (data[i] + data[i+1] + data[i+2]) / 3;
+          // 關鍵二值化門檻：低於 128 變純黑，高於變純白
+          const v = brightness < 128 ? 0 : 255; 
+          data[i] = data[i+1] = data[i+2] = v;
+        }
+        ctx.putImageData(imageData, 0, 0);
+
+        // 2. 開始辨識
+        status.innerText = "🔍 辨識文字中...";
+        const { data: { text } } = await Tesseract.recognize(canvas, 'eng', {
+          tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-'
+        });
+
+        // 3. 提取車牌號碼
+        const match = text.toUpperCase().match(/[A-Z0-9]{2,4}-?[A-Z0-9]{2,4}/);
+        if (match) {
+          const plate = match[0].replace("-", "");
+          status.innerText = "✅ 辨識到車牌：" + match[0];
+          fetchData(plate);
         } else {
-          status.innerText = "❌ 沒辨識到文字，請拍清楚一點。";
+          status.innerText = "❌ 無法清楚辨識，請確保對焦並重拍。";
         }
       };
       img.src = URL.createObjectURL(file);
     }
 
-    function searchGAS(plate) {
+    function fetchData(plate) {
       fetch(`${API_URL}?action=getSearchResult&query=${plate}`)
-        .then(r => r.json())
+        .then(res => res.json())
         .then(data => {
-          const resArea = document.getElementById("resultArea");
-          resArea.style.display = "block";
+          const resDiv = document.getElementById("result");
+          resDiv.style.display = "block";
           if (data.length > 0) {
-            resArea.innerHTML = `<b>車主：</b>${data[0][1]}<br><b>車號：</b>${data[0][0]}<br><b>電話：</b><a href="tel:${data[0][2]}">${data[0][2]}</a>`;
+            resDiv.innerHTML = `<b>車主：</b>${data[0][1]}<br><b>車號：</b>${data[0][0]}<br><b>電話：</b><a href="tel:${data[0][2]}">${data[0][2]}</a>`;
           } else {
-            resArea.innerHTML = "查無資料";
+            resDiv.innerHTML = "資料庫中查無此車號。";
           }
         });
     }
-
-    init();
   </script>
 </body>
 </html>
