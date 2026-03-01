@@ -5,101 +5,44 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>車主搜尋系統</title>
   <meta name="robots" content="noindex">
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
   <style>
-    /* 基本樣式 */
-    body {
-      font-family: "Microsoft JhengHei", Arial, sans-serif;
-      margin: 0;
-      padding: 0;
-      background-color: #f4f4f4;
-    }
-
-    /* 標題樣式 */
-    h1 {
-      color: #333;
-      padding: 20px;
-      background-color: #e0e0e0;
-      margin-top: 0;
-    }
-
-    /* 表單容器樣式 */
-    form {
-      display: block;
-      margin: 20px;
-    }
-
-    /* 調整輸入框的樣式 - 增加響應式寬度 */
-    input[type="text"] {
-      width: 100%;
-      max-width: 300px;
-      padding: 10px;
-      margin-bottom: 10px;
-      border: 1px solid #ccc;
-      border-radius: 4px;
-      box-sizing: border-box;
-    }
-
-    /* 按鈕容器樣式 */
-    .button-container {
-      margin-top: 10px;
-    }
-
-    /* 按鈕通用樣式 */
-    input[type="submit"], button {
-      padding: 10px 20px;
-      border: none;
-      border-radius: 4px;
-      color: white;
-      cursor: pointer;
-      font-size: 16px;
-      transition: background-color 0.3s;
-    }
-
-    /* 提交按鈕樣式 */
-    input[type="submit"] {
-      background-color: #4CAF50;
-    }
-
-    /* 清除按鈕樣式 */
-    button {
-      background-color: #f44336;
-      margin-left: 10px;
-    }
-
-    /* 按鈕懸停效果 */
+    /* 保持你原本的樣式 */
+    body { font-family: "Microsoft JhengHei", Arial, sans-serif; margin: 0; padding: 0; background-color: #f4f4f4; }
+    h1 { color: #333; padding: 20px; background-color: #e0e0e0; margin-top: 0; }
+    form { display: block; margin: 20px; }
+    input[type="text"] { width: 100%; max-width: 300px; padding: 10px; margin-bottom: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+    .button-container { margin-top: 10px; }
+    input[type="submit"], button { padding: 10px 20px; border: none; border-radius: 4px; color: white; cursor: pointer; font-size: 16px; transition: background-color 0.3s; }
+    input[type="submit"] { background-color: #4CAF50; }
+    button { background-color: #f44336; margin-left: 10px; }
     input[type="submit"]:hover { background-color: #45a049; }
     button:hover { background-color: #d32f2f; }
 
-    /* 資料容器樣式 */
-    #dataContainer {
-      background-color: #fff;
-      border: 1px solid #ddd;
-      border-radius: 8px;
-      padding: 20px;
-      margin: 20px;
-      max-width: 500px;
-      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-      display: none; /* 初始隱藏 */
-    }
-
-    .info-item {
-      margin-bottom: 10px;
-      padding-bottom: 10px;
-      border-bottom: 1px solid #eee;
-    }
-
+    /* 新增：OCR 專用按鈕樣式 */
+    .ocr-btn { background-color: #2196F3; margin-bottom: 15px; display: inline-block; text-align: center; }
+    .ocr-btn:hover { background-color: #1976D2; }
+    
+    #dataContainer { background-color: #fff; border: 1px solid #ddd; border-radius: 8px; padding: 20px; margin: 20px; max-width: 500px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); display: none; }
+    .info-item { margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid #eee; }
     .info-item:last-child { border-bottom: none; }
-
-    .loading-spinner {
-      margin-left: 10px;
-      color: #666;
-      display: none;
-    }
+    .loading-spinner { margin-left: 10px; color: #666; display: none; }
+    
+    /* 辨識狀態文字 */
+    #ocrStatus { font-size: 14px; color: #555; margin-top: 5px; display: block; height: 20px; }
   </style>
 </head>
 <body>
   <h1>車主聯絡資料搜尋</h1>
   
+  <div style="margin: 0 20px;">
+    <label for="cameraInput" class="ocr-btn" style="padding: 10px 20px; border-radius: 4px; color: white; cursor: pointer;">
+      📷 拍照/上傳辨識車牌
+    </label>
+    <input type="file" id="cameraInput" accept="image/*" capture="environment" style="display: none;" onchange="handleOCR(this)">
+    <span id="ocrStatus"></span>
+  </div>
+
   <form onsubmit="submitForm(event)">
     <input type="text" id="inputData" name="inputData" list="carList" placeholder="請輸入完整車號" autocomplete="off">
     <datalist id="carList"></datalist>
@@ -114,19 +57,10 @@
   <div id="dataContainer"></div>
 
   <script>
-    // --- 配置區域 ---
-    // 請在這裡貼上你部署後的 Google Apps Script 網頁應用程式 URL
     const API_URL = "https://script.google.com/macros/s/AKfycbxOkoaNquIx_V8n_7eS_5ULmoqxPVly_Bezx9_QsmWSzNOcojrCI9Oa6UNd5hOD2euS/exec"; 
-    // ---------------
-
     var carOptions = [];
 
-    // 初始化：獲取所有車號供下拉選單使用
     window.onload = function() {
-      if (API_URL === "你的_GAS_WEB_APP_URL") {
-        console.warn("尚未設定 API_URL，請將 GAS 部署後的連結貼到代碼中。");
-        return;
-      }
       fetch(`${API_URL}?action=getCarOptions`)
         .then(res => res.json())
         .then(options => {
@@ -136,46 +70,82 @@
         .catch(err => console.error("無法初始化選單:", err));
     };
 
-    function submitForm(event) {
-      event.preventDefault();
-      const inputData = document.getElementById("inputData").value;
+    // --- OCR 核心邏輯 ---
+    async function handleOCR(input) {
+      const file = input.files[0];
+      if (!file) return;
+
+      const status = document.getElementById("ocrStatus");
+      status.innerText = "⏳ 正在啟動辨識引擎...";
+
+      try {
+        // 使用 Tesseract 辨識 (設定為僅辨識英數)
+        const worker = await Tesseract.createWorker('eng');
+        await worker.setParameters({
+          tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-', // 限制字元提高準確率
+        });
+
+        status.innerText = "🔍 掃描中，請稍候...";
+        const { data: { text } } = await worker.recognize(file);
+        await worker.terminate();
+
+        // 正則表達式抓取車牌格式 (例如: ABC-1234, 1234-AB 等)
+        const platePattern = /[A-Z0-9]{2,4}-?[A-Z0-9]{2,4}/g;
+        const matches = text.toUpperCase().match(platePattern);
+
+        if (matches && matches.length > 0) {
+          const detectedPlate = matches[0].replace("-", ""); // 移除橫槓以便搜尋
+          status.innerText = `✅ 辨識成功: ${matches[0]}`;
+          
+          // 自動填入輸入框並執行搜尋
+          document.getElementById("inputData").value = detectedPlate;
+          executeSearch(detectedPlate);
+        } else {
+          status.innerText = "❌ 無法辨識有效車牌，請重試。";
+        }
+      } catch (err) {
+        console.error(err);
+        status.innerText = "❌ 辨識發生錯誤。";
+      }
+    }
+
+    // 將搜尋邏輯抽出來，方便手動與 OCR 調用
+    function executeSearch(query) {
       const loading = document.getElementById("loading");
       const container = document.getElementById("dataContainer");
-
-      if (!inputData) return;
-
       loading.style.display = "inline";
-      
-      // 改用 fetch 存取 GAS
-      fetch(`${API_URL}?action=getSearchResult&query=${encodeURIComponent(inputData)}`)
+
+      fetch(`${API_URL}?action=getSearchResult&query=${encodeURIComponent(query)}`)
         .then(res => res.json())
         .then(data => {
           updateDataOnPage(data);
           loading.style.display = "none";
-          document.getElementById("inputData").value = ""; 
+          // 搜尋完畢不一定要清空，讓使用者確認車號
         })
         .catch(err => {
-          console.error("搜尋出錯:", err);
-          container.innerHTML = "<p style='color:red'>系統連線錯誤，請稍後再試。</p>";
-          container.style.display = "block";
           loading.style.display = "none";
+          container.innerHTML = "<p style='color:red'>連線失敗。</p>";
+          container.style.display = "block";
         });
     }
 
+    function submitForm(event) {
+      event.preventDefault();
+      const inputData = document.getElementById("inputData").value;
+      if (!inputData) return;
+      executeSearch(inputData);
+    }
+
+    // --- 畫面更新邏輯 (保持不變) ---
     function updateDataOnPage(data) {
       const container = document.getElementById("dataContainer");
       container.innerHTML = ""; 
       container.style.display = "block";
-
       if (data && data.length > 0) {
         data.forEach(item => {
           const div = document.createElement("div");
           div.className = "info-item";
-          div.innerHTML = `
-            <strong>車主：</strong> ${item[1]} <br>
-            <strong>車號：</strong> ${item[0]} <br>
-            <strong>電話：</strong> <a href="tel:${item[2]}">${item[2]}</a>
-          `;
+          div.innerHTML = `<strong>車主：</strong> ${item[1]} <br><strong>車號：</strong> ${item[0]} <br><strong>電話：</strong> <a href="tel:${item[2]}">${item[2]}</a>`;
           container.appendChild(div);
         });
       } else {
@@ -184,13 +154,11 @@
     }
 
     function clearData() {
-      const container = document.getElementById("dataContainer");
-      container.innerHTML = "";
-      container.style.display = "none";
+      document.getElementById("dataContainer").style.display = "none";
       document.getElementById("inputData").value = "";
+      document.getElementById("ocrStatus").innerText = "";
     }
 
-    // 關鍵字篩選功能
     document.getElementById("inputData").addEventListener("input", function(e) {
       const keyword = e.target.value.toUpperCase();
       const filtered = carOptions.filter(opt => opt.toUpperCase().includes(keyword));
