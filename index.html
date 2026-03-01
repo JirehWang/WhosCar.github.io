@@ -71,44 +71,60 @@
     };
 
     // --- OCR 核心邏輯 ---
-    async function handleOCR(input) {
-      const file = input.files[0];
-      if (!file) return;
+async function handleOCR(input) {
+  const file = input.files[0];
+  if (!file) return;
 
-      const status = document.getElementById("ocrStatus");
-      status.innerText = "⏳ 正在啟動辨識引擎...";
+  const status = document.getElementById("ocrStatus");
+  status.innerText = "⏳ 正在優化影像並辨識...";
 
-      try {
-        // 使用 Tesseract 辨識 (設定為僅辨識英數)
-        const worker = await Tesseract.createWorker('eng');
-        await worker.setParameters({
-          tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-', // 限制字元提高準確率
-        });
-
-        status.innerText = "🔍 掃描中，請稍候...";
-        const { data: { text } } = await worker.recognize(file);
-        await worker.terminate();
-
-        // 正則表達式抓取車牌格式 (例如: ABC-1234, 1234-AB 等)
-        const platePattern = /[A-Z0-9]{2,4}-?[A-Z0-9]{2,4}/g;
-        const matches = text.toUpperCase().match(platePattern);
-
-        if (matches && matches.length > 0) {
-          const detectedPlate = matches[0].replace("-", ""); // 移除橫槓以便搜尋
-          status.innerText = `✅ 辨識成功: ${matches[0]}`;
-          
-          // 自動填入輸入框並執行搜尋
-          document.getElementById("inputData").value = detectedPlate;
-          executeSearch(detectedPlate);
-        } else {
-          status.innerText = "❌ 無法辨識有效車牌，請重試。";
-        }
-      } catch (err) {
-        console.error(err);
-        status.innerText = "❌ 辨識發生錯誤。";
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    const img = new Image();
+    img.onload = async () => {
+      // --- 影像預處理：轉為高對比黑白 ---
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      canvas.width = img.width;
+      canvas.height = img.height;
+      
+      ctx.drawImage(img, 0, 0);
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const data = imageData.data;
+      
+      // 簡易灰階與門檻值處理 (閾值設為 128)
+      for (let i = 0; i < data.length; i += 4) {
+        const avg = (data[i] + data[i+1] + data[i+2]) / 3;
+        const v = avg > 120 ? 255 : 0; // 讓黑的更黑，白的更白
+        data[i] = data[i+1] = data[i+2] = v;
       }
-    }
+      ctx.putImageData(imageData, 0, 0);
 
+      // --- 開始辨識 ---
+      const worker = await Tesseract.createWorker('eng');
+      await worker.setParameters({
+        tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-', 
+      });
+
+      const { data: { text } } = await worker.recognize(canvas); // 辨識處理過的 canvas
+      await worker.terminate();
+
+      const platePattern = /[A-Z0-9]{2,4}-?[A-Z0-9]{2,4}/g;
+      const matches = text.toUpperCase().match(platePattern);
+
+      if (matches && matches.length > 0) {
+        const detected = matches[0].replace("-", "");
+        status.innerText = `✅ 辨識到: ${matches[0]}，比對中...`;
+        document.getElementById("inputData").value = detected;
+        executeSearch(detected);
+      } else {
+        status.innerText = "❌ 辨識模糊，請確保光線充足並對焦。";
+      }
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
     // 將搜尋邏輯抽出來，方便手動與 OCR 調用
     function executeSearch(query) {
       const loading = document.getElementById("loading");
