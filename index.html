@@ -7,61 +7,29 @@
   <meta name="robots" content="noindex">
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
   <style>
-    /* 基本樣式 */
-    body {
-      font-family: "Microsoft JhengHei", Arial, sans-serif;
-      margin: 0; padding: 0; background-color: #f4f4f4;
-    }
-
-    /* 鏡頭區域 */
-    .video-container {
-      position: relative; width: 100vw; height: 45vh; background: #000; overflow: hidden;
-    }
+    body { font-family: "Microsoft JhengHei", Arial, sans-serif; margin: 0; padding: 0; background-color: #f4f4f4; }
+    .video-container { position: relative; width: 100vw; height: 45vh; background: #000; overflow: hidden; }
     #video { width: 100%; height: 100%; object-fit: cover; }
-    
-    /* 掃描紅框 */
     .scanner-overlay {
       position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
       width: 80%; height: 100px; border: 3px solid #ff4081; border-radius: 8px;
       box-shadow: 0 0 0 1000px rgba(0,0,0,0.5); z-index: 5; pointer-events: none;
     }
-
-    /* 鏡頭切換按鈕 */
     .switch-camera-btn {
       position: absolute; bottom: 15px; right: 15px; z-index: 20;
       background: rgba(0,0,0,0.6); color: white; border: none;
       width: 44px; height: 44px; border-radius: 50%; font-size: 20px;
       cursor: pointer; display: flex; align-items: center; justify-content: center;
     }
-
-    /* 操作面板 */
-    .panel {
-      background: white; padding: 20px; border-radius: 20px 20px 0 0;
-      margin-top: -20px; position: relative; z-index: 10; min-height: 55vh;
-      box-shadow: 0 -4px 10px rgba(0,0,0,0.1);
-    }
-
+    .panel { background: white; padding: 20px; border-radius: 20px 20px 0 0; margin-top: -20px; position: relative; z-index: 10; min-height: 55vh; box-shadow: 0 -4px 10px rgba(0,0,0,0.1); }
     h1 { font-size: 1.3rem; margin-top: 0; color: #333; text-align: center; }
-
-    .btn-ocr {
-      width: 100%; background-color: #ff4081; color: white; border: none;
-      padding: 15px; border-radius: 50px; font-size: 18px; font-weight: bold;
-      cursor: pointer; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-    }
-
+    .btn-ocr { width: 100%; background-color: #ff4081; color: white; border: none; padding: 15px; border-radius: 50px; font-size: 18px; font-weight: bold; cursor: pointer; margin-bottom: 20px; }
     .search-group { display: flex; gap: 10px; margin-bottom: 15px; }
-    input[type="text"] {
-      flex: 1; padding: 12px; border: 1px solid #ccc; border-radius: 8px; font-size: 16px;
-    }
+    input[type="text"] { flex: 1; padding: 12px; border: 1px solid #ccc; border-radius: 8px; font-size: 16px; }
     .btn-search { background-color: #4CAF50; color: white; border: none; padding: 0 20px; border-radius: 8px; cursor: pointer; }
-
-    #status { font-size: 14px; color: #666; text-align: center; margin-bottom: 10px; height: 20px; }
-    #dataContainer {
-      background-color: #e3f2fd; border: 1px solid #2196F3; border-radius: 8px;
-      padding: 15px; display: none; margin-top: 10px;
-    }
+    #status { font-size: 14px; color: #666; text-align: center; margin-bottom: 10px; min-height: 20px; }
+    #dataContainer { background-color: #e3f2fd; border: 1px solid #2196F3; border-radius: 8px; padding: 15px; display: none; margin-top: 10px; }
     .info-item { margin-bottom: 8px; font-size: 16px; line-height: 1.5; }
-    
     canvas { display: none; }
   </style>
 </head>
@@ -70,17 +38,16 @@
   <div class="video-container">
     <video id="video" autoplay playsinline></video>
     <div class="scanner-overlay"></div>
-    <button class="switch-camera-btn" onclick="toggleCamera()" title="切換鏡頭">🔄</button>
+    <button class="switch-camera-btn" onclick="toggleCamera()">🔄</button>
   </div>
 
   <div class="panel">
     <h1>車主聯絡資料搜尋</h1>
-    
     <button class="btn-ocr" onclick="captureAndOCR()">🔍 掃描紅框內車牌</button>
-    <div id="status">正在啟動鏡頭...</div>
+    <div id="status">正在啟動相機與連線...</div>
 
     <form class="search-group" onsubmit="submitForm(event)">
-      <input type="text" id="inputData" name="inputData" list="carList" placeholder="或手動輸入車號" autocomplete="off">
+      <input type="text" id="inputData" list="carList" placeholder="或手動輸入車號" autocomplete="off">
       <datalist id="carList"></datalist>
       <input type="submit" class="btn-search" value="搜尋">
     </form>
@@ -91,7 +58,8 @@
   <canvas id="cropCanvas"></canvas>
 
   <script>
-    const API_URL = "你的_GAS_WEB_APP_URL"; 
+    // 已自動填入你的 GAS 網址
+    const API_URL = "https://script.google.com/macros/s/AKfycbxOkoaNquIx_V8n_7eS_5ULmoqxPVly_Bezx9_QsmWSzNOcojrCI9Oa6UNd5hOD2euS/exec"; 
 
     const video = document.getElementById('video');
     const canvas = document.getElementById('cropCanvas');
@@ -102,93 +70,69 @@
     let currentDeviceIndex = 0;
     let carOptions = [];
 
-    // --- 1. 鏡頭管理邏輯 ---
-
+    // 1. 初始化
     window.onload = async function() {
       await initCamera();
-      if (API_URL !== "https://script.google.com/macros/s/AKfycbxOkoaNquIx_V8n_7eS_5ULmoqxPVly_Bezx9_QsmWSzNOcojrCI9Oa6UNd5hOD2euS/exec") {
-        fetch(`${API_URL}?action=getCarOptions`)
-          .then(res => res.json())
-          .then(options => {
-            carOptions = options;
-            updateDatalist(options);
-          });
-      }
+      loadCarOptions();
     };
 
+    function loadCarOptions() {
+      fetch(`${API_URL}?action=getCarOptions`)
+        .then(res => res.json())
+        .then(options => {
+          carOptions = options;
+          updateDatalist(options);
+        })
+        .catch(err => {
+          console.error("無法載入選項:", err);
+          status.innerText = "⚠️ 後端連線異常，請檢查 GAS 部署設定";
+        });
+    }
+
+    // 2. 鏡頭控制
     async function initCamera() {
       try {
-        // 先獲取清單
         const devices = await navigator.mediaDevices.enumerateDevices();
         videoDevices = devices.filter(device => device.kind === 'videoinput');
-
-        if (videoDevices.length === 0) {
-          status.innerText = "❌ 找不到任何相機設備";
-          return;
-        }
-
-        // 預設嘗試尋找包含 "back" 或 "environment" 的鏡頭
-        currentDeviceIndex = videoDevices.findIndex(d => 
-          d.label.toLowerCase().includes('back') || 
-          d.label.toLowerCase().includes('environment')
-        );
+        if (videoDevices.length === 0) { status.innerText = "❌ 找不到相機"; return; }
+        
+        currentDeviceIndex = videoDevices.findIndex(d => d.label.toLowerCase().includes('back'));
         if (currentDeviceIndex === -1) currentDeviceIndex = 0;
 
         await startStream(videoDevices[currentDeviceIndex].deviceId);
       } catch (err) {
-        status.innerText = "❌ 無法讀取相機清單";
-        console.error(err);
+        status.innerText = "❌ 相機啟動失敗";
       }
     }
 
     async function startStream(deviceId) {
-      if (currentStream) {
-        currentStream.getTracks().forEach(track => track.stop());
-      }
-
-      const constraints = {
-        video: {
-          deviceId: deviceId ? { exact: deviceId } : undefined,
-          // 如果沒有特定 ID，則使用理想模式
-          facingMode: deviceId ? undefined : { ideal: "environment" },
-          width: { ideal: 1280 },
-          height: { ideal: 720 }
-        }
-      };
-
+      if (currentStream) { currentStream.getTracks().forEach(track => track.stop()); }
+      const constraints = { video: { deviceId: { exact: deviceId }, width: { ideal: 1280 }, height: { ideal: 720 } } };
       try {
         currentStream = await navigator.mediaDevices.getUserMedia(constraints);
         video.srcObject = currentStream;
-        status.innerText = `✅ 鏡頭就緒 (${currentDeviceIndex + 1}/${videoDevices.length})`;
+        status.innerText = `✅ 鏡頭已就緒 (${currentDeviceIndex + 1}/${videoDevices.length})`;
       } catch (err) {
-        status.innerText = "❌ 無法啟動此鏡頭";
-        console.error(err);
+        // 退而求其次，使用理想模式
+        currentStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+        video.srcObject = currentStream;
       }
     }
 
-    // 點擊 🔄 按鈕切換下一個鏡頭
     async function toggleCamera() {
-      if (videoDevices.length < 2) {
-        status.innerText = "ℹ️ 此設備僅偵測到單一相機";
-        return;
-      }
+      if (videoDevices.length < 2) return;
       currentDeviceIndex = (currentDeviceIndex + 1) % videoDevices.length;
       await startStream(videoDevices[currentDeviceIndex].deviceId);
     }
 
-    // --- 2. OCR 辨識邏輯 ---
-
+    // 3. OCR 辨識
     async function captureAndOCR() {
-      status.innerText = "⏳ 影像強化與辨識中...";
-      document.getElementById("dataContainer").style.display = "none";
-
+      status.innerText = "⏳ 辨識中...";
       const ctx = canvas.getContext('2d');
       const vW = video.videoWidth;
       const vH = video.videoHeight;
-      
-      // 動態計算裁切 (取畫面中間 80% 寬, 25% 高)
       const cropW = vW * 0.8;
-      const cropH = vH * 0.25; 
+      const cropH = vH * 0.25;
       const startX = (vW - cropW) / 2;
       const startY = (vH - cropH) / 2;
 
@@ -196,21 +140,17 @@
       canvas.height = cropH;
       ctx.drawImage(video, startX, startY, cropW, cropH, 0, 0, cropW, cropH);
 
-      // 二值化處理 (解決 1051-K7 變 HEHE 的問題)
+      // 黑白預處理
       const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
       const d = imgData.data;
       for (let i = 0; i < d.length; i += 4) {
-        const avg = (d[i] + d[i+1] + d[i+2]) / 3;
-        const v = avg < 128 ? 0 : 255;
+        const v = ((d[i] + d[i+1] + d[i+2]) / 3) < 128 ? 0 : 255;
         d[i] = d[i+1] = d[i+2] = v;
       }
       ctx.putImageData(imgData, 0, 0);
 
       try {
-        const { data: { text } } = await Tesseract.recognize(canvas, 'eng', {
-          tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-'
-        });
-
+        const { data: { text } } = await Tesseract.recognize(canvas, 'eng', { tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-' });
         const match = text.toUpperCase().match(/[A-Z0-9]{2,4}-?[A-Z0-9]{2,4}/);
         if (match) {
           const plate = match[0].replace("-", "");
@@ -220,22 +160,18 @@
         } else {
           status.innerText = "❓ 辨識不清楚，請換鏡頭或手動輸入";
         }
-      } catch (e) {
-        status.innerText = "❌ 辨識出錯";
-      }
+      } catch (e) { status.innerText = "❌ 辨識出錯"; }
     }
 
-    // --- 3. 搜尋與 UI 邏輯 ---
-
+    // 4. 搜尋邏輯
     function submitForm(event) {
       event.preventDefault();
-      const inputVal = document.getElementById("inputData").value.toUpperCase().replace("-", "");
-      if (!inputVal) return;
-      executeSearch(inputVal);
+      const val = document.getElementById("inputData").value.toUpperCase().replace("-", "");
+      if (val) executeSearch(val);
     }
 
     function executeSearch(plate) {
-      status.innerText = "🔍 正在搜尋資料庫...";
+      status.innerText = "🔍 搜尋資料庫中...";
       fetch(`${API_URL}?action=getSearchResult&query=${encodeURIComponent(plate)}`)
         .then(res => res.json())
         .then(data => {
@@ -243,7 +179,8 @@
           status.innerText = "✅ 搜尋完成";
         })
         .catch(err => {
-          status.innerText = "❌ 連線失敗";
+          console.error("搜尋連線失敗:", err);
+          status.innerText = "❌ 連線失敗：請檢查後端 GAS 是否部署為『任何人』";
         });
     }
 
@@ -253,10 +190,7 @@
       container.style.display = "block";
       if (data && data.length > 0) {
         data.forEach(item => {
-          const div = document.createElement("div");
-          div.className = "info-item";
-          div.innerHTML = `<strong>車主：</strong> ${item[1]} <br><strong>車號：</strong> ${item[0]} <br><strong>電話：</strong> <a href="tel:${item[2]}">${item[2]}</a>`;
-          container.appendChild(div);
+          container.innerHTML += `<div class="info-item"><strong>車主：</strong>${item[1]}<br><strong>車號：</strong>${item[0]}<br><strong>電話：</strong><a href="tel:${item[2]}">${item[2]}</a></div>`;
         });
       } else {
         container.innerHTML = "<p>找不到該車號的資料。</p>";
@@ -265,19 +199,8 @@
 
     function updateDatalist(options) {
       const datalist = document.getElementById("carList");
-      datalist.innerHTML = "";
-      options.forEach(opt => {
-        const el = document.createElement("option");
-        el.value = opt;
-        datalist.appendChild(el);
-      });
+      datalist.innerHTML = options.map(opt => `<option value="${opt}">`).join("");
     }
-
-    document.getElementById("inputData").addEventListener("input", function(e) {
-      const keyword = e.target.value.toUpperCase();
-      const filtered = carOptions.filter(opt => opt.toUpperCase().includes(keyword));
-      updateDatalist(filtered);
-    });
   </script>
 </body>
 </html>
