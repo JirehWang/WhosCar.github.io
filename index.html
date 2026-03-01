@@ -42,16 +42,27 @@
     let ocr = null;
 
     // 初始化：載入輕量化模型
-    async function init() {
-      const status = document.getElementById("status");
-      try {
-        ocr = new PaddleOCR(); // 預設載入 mobile 輕量版
-        await ocr.init();
-        status.innerText = "✅ 系統就緒 (已載入輕量模型)";
-      } catch (e) {
-        status.innerText = "❌ 初始化失敗，請重整";
-      }
-    }
+async function init() {
+  const status = document.getElementById("status");
+  console.log("1. 開始檢查庫是否載入...");
+  
+  try {
+    if (typeof ocr === 'undefined') throw new Error("PaddleOCR 腳本沒載入成功");
+    console.log("2. 腳本存在，開始建立實例...");
+    
+    ocrEngine = new ocr(); 
+    
+    console.log("3. 正在嘗試連線模型伺服器...");
+    // 這裡我們手動指定一個比較穩定的 CDN 來源
+    await ocrEngine.init(); 
+    
+    console.log("4. 初始化完成！");
+    status.innerText = "✅ 系統就緒";
+  } catch (e) {
+    console.error("❌ 偵錯訊息:", e);
+    status.innerText = "❌ 失敗原因: " + e.message;
+  }
+}
 
     async function doLightOCR(input) {
       if (!ocr || !input.files[0]) return;
