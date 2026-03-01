@@ -3,23 +3,24 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-  <title>車主搜尋系統 - 連線修正版</title>
+  <title>車主搜尋管理系統 - 旗艦整合版</title>
+  <meta name="robots" content="noindex">
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
   <style>
-    body { font-family: "Microsoft JhengHei", Arial, sans-serif; margin: 0; padding: 0; background-color: #f4f4f4; overflow-x: hidden; }
+    body { font-family: "Microsoft JhengHei", Arial, sans-serif; margin: 0; padding: 0; background-color: #f4f4f4; overflow-x: hidden; color: #333; }
     
     /* 鏡頭區域 */
-    .video-container { position: relative; width: 100vw; height: 45vh; background: #000; overflow: hidden; }
+    .video-container { position: relative; width: 100vw; height: 40vh; background: #000; overflow: hidden; }
     #video { width: 100%; height: 100%; object-fit: cover; }
     
-    /* 掃描紅框 */
+    /* 掃描紅框：引導使用者對準車牌 */
     .scanner-overlay {
       position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
       width: 80%; height: 100px; border: 3px solid #ff4081; border-radius: 8px;
       box-shadow: 0 0 0 1000px rgba(0,0,0,0.5); z-index: 5; pointer-events: none;
     }
 
-    /* 鏡頭切換按鈕 (參考 QR 版) */
+    /* 鏡頭切換按鈕 (參考 QR 版穩定設計) */
     #switch-btn {
       position: absolute; bottom: 20px; right: 20px;
       width: 50px; height: 50px; background: rgba(255, 255, 255, 0.2);
@@ -32,24 +33,39 @@
     /* 操作面板 */
     .panel {
       background: white; padding: 20px; border-radius: 20px 20px 0 0;
-      margin-top: -20px; position: relative; z-index: 10; min-height: 55vh;
+      margin-top: -20px; position: relative; z-index: 10; min-height: 60vh;
       box-shadow: 0 -4px 10px rgba(0,0,0,0.1);
     }
 
+    /* 核心辨識按鈕 */
     .btn-ocr {
       width: 100%; background-color: #ff4081; color: white; border: none;
       padding: 15px; border-radius: 50px; font-size: 18px; font-weight: bold;
-      cursor: pointer; margin-bottom: 20px;
+      cursor: pointer; margin-bottom: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);
     }
 
+    /* 搜尋表單佈局 */
     .search-group { display: flex; gap: 10px; margin-bottom: 15px; }
-    input[type="text"] { flex: 1; padding: 12px; border: 1px solid #ccc; border-radius: 8px; font-size: 16px; }
-    .btn-search { background-color: #4CAF50; color: white; border: none; padding: 0 20px; border-radius: 8px; cursor: pointer; }
+    input[type="text"], input[type="tel"] { flex: 1; padding: 12px; border: 1px solid #ccc; border-radius: 8px; font-size: 16px; outline: none; }
+    input[type="text"]:focus { border-color: #2196F3; }
+    .btn-search { background-color: #4CAF50; color: white; border: none; padding: 0 20px; border-radius: 8px; cursor: pointer; font-weight: bold; }
 
+    /* 狀態提示與結果區 */
     #status-tip { font-size: 13px; color: #666; text-align: center; margin-bottom: 10px; min-height: 20px; }
-    #dataContainer { background-color: #fff; border: 1px solid #ddd; border-radius: 8px; padding: 15px; display: none; margin-top: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-    
-    canvas { display: none; }
+    #dataContainer { display: none; margin-top: 10px; }
+
+    /* 管理面板 (建立/編輯模式) */
+    #adminPanel {
+      display: none; margin-top: 20px; padding: 15px; 
+      border: 2px dashed #607d8b; border-radius: 12px; background: #fafafa;
+    }
+    .admin-label { font-size: 12px; color: #d32f2f; margin-bottom: 5px; display: block; }
+    .btn-save {
+      width: 100%; background-color: #607d8b; color: white; border: none;
+      padding: 12px; border-radius: 8px; font-weight: bold; cursor: pointer; margin-top: 10px;
+    }
+
+    canvas { display: none; } /* 處理用畫布，不顯示 */
   </style>
 </head>
 <body>
@@ -57,13 +73,13 @@
   <div class="video-container">
     <video id="video" autoplay playsinline></video>
     <div class="scanner-overlay"></div>
-    <div id="switch-btn" onclick="switchCamera()">
+    <div id="switch-btn" onclick="switchCamera()" title="切換鏡頭">
       <svg viewBox="0 0 24 24"><path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z"/></svg>
     </div>
   </div>
 
   <div class="panel">
-    <button class="btn-ocr" onclick="captureAndOCR()">🔍 掃描紅框內車牌</button>
+    <button class="btn-ocr" onclick="captureAndOCR()">🔍 辨識紅框內車牌</button>
     <div id="status-tip">正在初始化系統...</div>
 
     <form class="search-group" onsubmit="submitForm(event)">
@@ -73,12 +89,25 @@
     </form>
 
     <div id="dataContainer"></div>
+
+    <hr style="border: 0; border-top: 1px solid #eee; margin: 25px 0;">
+
+    <button onclick="toggleAdmin()" style="width:100%; background:none; border:1px solid #607d8b; color:#607d8b; padding:12px; border-radius:8px; cursor:pointer; font-weight:bold;">🛠️ 開啟資料建立 / 編輯模式</button>
+    
+    <div id="adminPanel">
+      <b style="color:#607d8b; display:block; margin-bottom:10px;">資料管理面板</b>
+      <span class="admin-label">* 為必填項目</span>
+      <input type="text" id="adminPlate" placeholder="* 車號 (如 ABC-1234)" style="width:100%; margin-bottom:10px; box-sizing:border-box;">
+      <input type="text" id="adminName" placeholder="* 車主姓名" style="width:100%; margin-bottom:10px; box-sizing:border-box;">
+      <input type="tel" id="adminTel" placeholder="聯絡電話 (選填)" style="width:100%; margin-bottom:10px; box-sizing:border-box;">
+      <button class="btn-save" id="saveBtn" onclick="saveData()">💾 儲存至雲端資料庫</button>
+    </div>
   </div>
 
   <canvas id="cropCanvas"></canvas>
 
   <script>
-    // --- 這裡已經填入你測試成功的 GAS 連結 ---
+    // --- 核心配置：你的 Google Apps Script 連結 ---
     const API_URL = "https://script.google.com/macros/s/AKfycbxOkoaNquIx_V8n_7eS_5ULmoqxPVly_Bezx9_QsmWSzNOcojrCI9Oa6UNd5hOD2euS/exec"; 
 
     const video = document.getElementById('video');
@@ -90,10 +119,10 @@
     let currentCameraIndex = 0;
     let carOptions = [];
 
-    // 1. 初始化相機清單
-    async function initSystem() {
+    // --- 1. 鏡頭管理 (參考旗艦版 QR Scanner 邏輯) ---
+    window.onload = async function() {
       try {
-        // 先請求一次權限以讀取正確名稱
+        // 先請求一次權限以獲取設備標籤
         const stream = await navigator.mediaDevices.getUserMedia({ video: true });
         stream.getTracks().forEach(t => t.stop());
 
@@ -101,20 +130,14 @@
         cameraList = devices.filter(device => device.kind === 'videoinput');
 
         if (cameraList.length > 0) {
-          // 優先找後置鏡頭
-          currentCameraIndex = cameraList.findIndex(d => 
-            d.label.toLowerCase().includes('back') || d.label.toLowerCase().includes('rear')
-          );
+          // 嘗試預設後置鏡頭
+          currentCameraIndex = cameraList.findIndex(d => d.label.toLowerCase().includes('back') || d.label.toLowerCase().includes('rear'));
           if (currentCameraIndex === -1) currentCameraIndex = 0;
-          
           startCurrentCamera();
         }
-        // 初始化連線資料 (你提供的 initOptions 邏輯)
-        initOptions();
-      } catch (err) {
-        tip.innerText = "相機啟動失敗，請確認權限";
-      }
-    }
+        initOptions(); // 初始化下拉選單
+      } catch (err) { tip.innerText = "❌ 相機啟動失敗"; }
+    };
 
     async function startCurrentCamera() {
       if (currentStream) currentStream.getTracks().forEach(track => track.stop());
@@ -124,8 +147,9 @@
           video: { deviceId: { exact: cameraId }, width: { ideal: 1280 }, height: { ideal: 720 } }
         });
         video.srcObject = currentStream;
-        tip.innerText = "系統已就緒";
+        tip.innerText = "✅ 系統就緒";
       } catch (err) {
+        // 寬鬆模式啟動
         currentStream = await navigator.mediaDevices.getUserMedia({ video: { deviceId: cameraId } });
         video.srcObject = currentStream;
       }
@@ -137,22 +161,17 @@
       await startCurrentCamera();
     }
 
-    // 2. OCR 辨識邏輯 (辨識成功後串接到搜尋邏輯)
+    // --- 2. OCR 辨識核心 (高對比預處理) ---
     async function captureAndOCR() {
-      tip.innerText = "⏳ 影像處理中...";
+      tip.innerText = "⏳ 辨識中...";
       const ctx = canvas.getContext('2d');
-      const vW = video.videoWidth;
-      const vH = video.videoHeight;
-      const cropW = vW * 0.8;
-      const cropH = vH * 0.25; 
-      const startX = (vW - cropW) / 2;
-      const startY = (vH - cropH) / 2;
-
-      canvas.width = cropW;
-      canvas.height = cropH;
+      const vW = video.videoWidth; const vH = video.videoHeight;
+      const cropW = vW * 0.8; const cropH = vH * 0.25; 
+      const startX = (vW - cropW) / 2; const startY = (vH - cropH) / 2;
+      canvas.width = cropW; canvas.height = cropH;
       ctx.drawImage(video, startX, startY, cropW, cropH, 0, 0, cropW, cropH);
 
-      // 二值化預處理 (優化辨識準確度)
+      // 黑白二值化預處理 (提升 1051-K7 辨識率)
       const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
       const d = imgData.data;
       for (let i = 0; i < d.length; i += 4) {
@@ -162,27 +181,23 @@
       ctx.putImageData(imgData, 0, 0);
 
       try {
-        const { data: { text } } = await Tesseract.recognize(canvas, 'eng', {
-          tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-'
+        const { data: { text } } = await Tesseract.recognize(canvas, 'eng', { 
+          tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-' 
         });
         const match = text.toUpperCase().match(/[A-Z0-9]{2,4}-?[A-Z0-9]{2,4}/);
         if (match) {
           tip.innerText = "✅ 辨識到: " + match[0];
           document.getElementById('inputData').value = match[0];
-          // 辨識成功後，自動呼叫你提供的 fetch 邏輯
           executeFetchSearch(match[0].replace("-", ""));
-        } else {
-          tip.innerText = "❓ 無法辨識，請換鏡頭或手動輸入";
-        }
-      } catch (e) { tip.innerText = "辨識失敗"; }
+        } else { tip.innerText = "❓ 辨識不清楚，請重新對焦"; }
+      } catch (e) { tip.innerText = "❌ 辨識出錯"; }
     }
 
-    // 3. 連線核心邏輯 (完全採用你提供的成功版 fetch 代碼)
+    // --- 3. 搜尋邏輯 (整合模糊查找顯示) ---
     function submitForm(event) {
       event.preventDefault();
-      var inputData = document.getElementById("inputData").value.toUpperCase().replace("-", "");
-      if (!inputData) return;
-      executeFetchSearch(inputData);
+      const val = document.getElementById("inputData").value.toUpperCase().replace("-", "");
+      if (val) executeFetchSearch(val);
     }
 
     function executeFetchSearch(query) {
@@ -193,63 +208,93 @@
           updateDataOnPage(data);
           tip.innerText = "✅ 搜尋完成";
         })
-        .catch(err => {
-          tip.innerText = "❌ 連線失敗";
-          console.error(err);
-        });
+        .catch(() => { tip.innerText = "❌ 連線失敗"; });
     }
 
+    function updateDataOnPage(data) {
+      const container = document.getElementById("dataContainer");
+      container.innerHTML = ""; container.style.display = "block";
+
+      if (data && data.length > 0) {
+        if (data.length > 1) {
+          container.innerHTML += `<div style="color:#666; font-size:12px; margin-bottom:10px;">💡 找到 ${data.length} 筆相似結果：</div>`;
+        }
+        data.forEach((item, index) => {
+          // 第一筆(最像)用深藍強調，其餘用灰色
+          const bgColor = index === 0 ? "#e3f2fd" : "#f5f5f5";
+          const borderColor = index === 0 ? "#2196F3" : "#ccc";
+          const div = document.createElement("div");
+          div.style.cssText = `background:${bgColor}; border:1px solid ${borderColor}; border-radius:8px; padding:12px; margin-bottom:10px;`;
+          // 欄位對齊：item[1]車號, item[2]姓名, item[3]電話
+          div.innerHTML = `
+            <div style="margin-bottom:5px;"><b>車主 :</b> ${item[2] || "-"}</div>
+            <div style="margin-bottom:5px;"><b>車號 :</b> ${item[1] || "-"}</div>
+            <div style="margin-bottom:10px;"><b>電話 :</b> <a href="tel:${item[3]}">${item[3] || "未提供"}</a></div>
+            <button onclick="editThis('${item[1]}','${item[2]}','${item[3]}')" style="background:#ff9800; color:white; border:none; padding:5px 12px; border-radius:4px; font-size:12px; cursor:pointer;">✏️ 編輯此筆</button>
+          `;
+          container.appendChild(div);
+        });
+      } else { container.innerHTML = "<p style='color:red;'>找不到符合資料。</p>"; }
+    }
+
+    // --- 4. 資料管理 (新增/編輯/必填驗證) ---
+    function toggleAdmin() {
+      const p = document.getElementById('adminPanel');
+      p.style.display = p.style.display === 'none' ? 'block' : 'none';
+    }
+
+    function editThis(plate, name, tel) {
+      document.getElementById('adminPanel').style.display = 'block';
+      document.getElementById('adminPlate').value = plate;
+      document.getElementById('adminName').value = name;
+      document.getElementById('adminTel').value = (tel === "undefined" ? "" : tel);
+      document.getElementById('adminPanel').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    function saveData() {
+      const plate = document.getElementById('adminPlate').value.trim();
+      const name = document.getElementById('adminName').value.trim();
+      const tel = document.getElementById('adminTel').value.trim();
+
+      // --- 必填驗證 ---
+      if (!plate) { alert("⚠️ 請輸入車號！"); document.getElementById('adminPlate').focus(); return; }
+      if (!name) { alert("⚠️ 請輸入姓名！"); document.getElementById('adminName').focus(); return; }
+
+      const btn = document.getElementById('saveBtn');
+      btn.innerText = "⏳ 正在儲存..."; btn.disabled = true;
+
+      fetch(`${API_URL}?action=savePlate&plate=${encodeURIComponent(plate)}&name=${encodeURIComponent(name)}&tel=${encodeURIComponent(tel)}`)
+        .then(res => res.json())
+        .then(result => {
+          alert(result.message);
+          btn.innerText = "💾 儲存至資料庫"; btn.disabled = false;
+          if (result.status === "success") {
+            document.getElementById('adminPlate').value = "";
+            document.getElementById('adminName').value = "";
+            document.getElementById('adminTel').value = "";
+            initOptions(); // 刷新下拉清單
+          }
+        })
+        .catch(() => { alert("儲存失敗"); btn.disabled = false; });
+    }
+
+    // 選單初始化
     function initOptions() {
       fetch(`${API_URL}?action=getCarOptions`)
-        .then(response => response.json())
-        .then(options => {
-          carOptions = options;
-          updateDatalist(options);
-        });
+        .then(res => res.json())
+        .then(options => { carOptions = options; updateDatalist(options); });
     }
-
-// 請在 index.html 替換此函數
-function updateDataOnPage(data) {
-  var dataContainer = document.getElementById("dataContainer");
-  dataContainer.innerHTML = "";
-  dataContainer.style.display = "block";
-
-  if (data && data.length > 0) {
-    // 如果有多筆相似結果，顯示提示
-    if (data.length > 1) {
-      dataContainer.innerHTML += `<div style="color:#666; font-size:12px; margin-bottom:10px;">💡 找到 ${data.length} 筆相似結果：</div>`;
-    }
-
-    data.forEach((item, index) => {
-      // 第一筆用深藍色強調（最像），其餘用普通樣式
-      const bgColor = index === 0 ? "#e3f2fd" : "#f5f5f5";
-      const borderColor = index === 0 ? "#2196F3" : "#ccc";
-
-      dataContainer.innerHTML += `
-        <div style="background:${bgColor}; border:1px solid ${borderColor}; border-radius:8px; padding:12px; margin-bottom:10px;">
-          <div class="info-item"><strong>車主：</strong> ${item[2] || item[1]}</div>
-          <div class="info-item"><strong>車號：</strong> ${item[1] || item[0]}</div>
-          <div class="info-item"><strong>電話：</strong> <a href="tel:${item[3] || item[2]}">${item[3] || item[2]}</a></div>
-        </div>`;
-    });
-  } else {
-    dataContainer.innerHTML = "<p style='color:red;'>查無資料，請確認車號是否正確。</p>";
-  }
-}
 
     function updateDatalist(options) {
       const datalist = document.getElementById("carList");
       datalist.innerHTML = options.map(opt => `<option value="${opt}">`).join("");
     }
 
-    // 關鍵字篩選
     document.getElementById("inputData").addEventListener("input", function(e) {
       const keyword = e.target.value.toUpperCase();
       const filtered = carOptions.filter(opt => opt.toUpperCase().includes(keyword));
       updateDatalist(filtered);
     });
-
-    window.onload = initSystem;
   </script>
 </body>
 </html>
