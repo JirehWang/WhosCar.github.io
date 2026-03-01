@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>車主搜尋系統</title>
+  <meta name="robots" content="noindex">
+  <style>
+    /* 基本樣式 */
+    body {
+      font-family: "Microsoft JhengHei", Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      background-color: #f4f4f4;
+    }
+
+    /* 標題樣式 */
+    h1 {
+      color: #333;
+      padding: 20px;
+      background-color: #e0e0e0;
+      margin-top: 0;
+    }
+
+    /* 表單容器樣式 */
+    form {
+      display: block;
+      margin: 20px;
+    }
+
+    /* 調整輸入框的樣式 - 增加響應式寬度 */
+    input[type="text"] {
+      width: 100%;
+      max-width: 300px;
+      padding: 10px;
+      margin-bottom: 10px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      box-sizing: border-box;
+    }
+
+    /* 按鈕容器樣式 */
+    .button-container {
+      margin-top: 10px;
+    }
+
+    /* 按鈕通用樣式 */
+    input[type="submit"], button {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 4px;
+      color: white;
+      cursor: pointer;
+      font-size: 16px;
+      transition: background-color 0.3s;
+    }
+
+    /* 提交按鈕樣式 */
+    input[type="submit"] {
+      background-color: #4CAF50;
+    }
+
+    /* 清除按鈕樣式 */
+    button {
+      background-color: #f44336;
+      margin-left: 10px;
+    }
+
+    /* 按鈕懸停效果 */
+    input[type="submit"]:hover { background-color: #45a049; }
+    button:hover { background-color: #d32f2f; }
+
+    /* 資料容器樣式 */
+    #dataContainer {
+      background-color: #fff;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 20px;
+      margin: 20px;
+      max-width: 500px;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      display: none; /* 初始隱藏 */
+    }
+
+    .info-item {
+      margin-bottom: 10px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid #eee;
+    }
+
+    .info-item:last-child { border-bottom: none; }
+
+    .loading-spinner {
+      margin-left: 10px;
+      color: #666;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <h1>車主聯絡資料搜尋</h1>
+  
+  <form onsubmit="submitForm(event)">
+    <input type="text" id="inputData" name="inputData" list="carList" placeholder="請輸入完整車號" autocomplete="off">
+    <datalist id="carList"></datalist>
+    
+    <div class="button-container">
+      <input type="submit" value="提交" id="submitBtn">
+      <button type="button" onclick="clearData()">清除</button>
+      <span id="loading" class="loading-spinner">搜尋中...</span>
+    </div>
+  </form>
+
+  <div id="dataContainer"></div>
+
+  <script>
+    // --- 配置區域 ---
+    // 請在這裡貼上你部署後的 Google Apps Script 網頁應用程式 URL
+    const API_URL = "https://script.google.com/macros/s/AKfycbxOkoaNquIx_V8n_7eS_5ULmoqxPVly_Bezx9_QsmWSzNOcojrCI9Oa6UNd5hOD2euS/exec"; 
+    // ---------------
+
+    var carOptions = [];
+
+    // 初始化：獲取所有車號供下拉選單使用
+    window.onload = function() {
+      if (API_URL === "你的_GAS_WEB_APP_URL") {
+        console.warn("尚未設定 API_URL，請將 GAS 部署後的連結貼到代碼中。");
+        return;
+      }
+      fetch(`${API_URL}?action=getCarOptions`)
+        .then(res => res.json())
+        .then(options => {
+          carOptions = options;
+          updateDatalist(options);
+        })
+        .catch(err => console.error("無法初始化選單:", err));
+    };
+
+    function submitForm(event) {
+      event.preventDefault();
+      const inputData = document.getElementById("inputData").value;
+      const loading = document.getElementById("loading");
+      const container = document.getElementById("dataContainer");
+
+      if (!inputData) return;
+
+      loading.style.display = "inline";
+      
+      // 改用 fetch 存取 GAS
+      fetch(`${API_URL}?action=getSearchResult&query=${encodeURIComponent(inputData)}`)
+        .then(res => res.json())
+        .then(data => {
+          updateDataOnPage(data);
+          loading.style.display = "none";
+          document.getElementById("inputData").value = ""; 
+        })
+        .catch(err => {
+          console.error("搜尋出錯:", err);
+          container.innerHTML = "<p style='color:red'>系統連線錯誤，請稍後再試。</p>";
+          container.style.display = "block";
+          loading.style.display = "none";
+        });
+    }
+
+    function updateDataOnPage(data) {
+      const container = document.getElementById("dataContainer");
+      container.innerHTML = ""; 
+      container.style.display = "block";
+
+      if (data && data.length > 0) {
+        data.forEach(item => {
+          const div = document.createElement("div");
+          div.className = "info-item";
+          div.innerHTML = `
+            <strong>車主：</strong> ${item[1]} <br>
+            <strong>車號：</strong> ${item[0]} <br>
+            <strong>電話：</strong> <a href="tel:${item[2]}">${item[2]}</a>
+          `;
+          container.appendChild(div);
+        });
+      } else {
+        container.innerHTML = "<p>找不到該車號的資料。</p>";
+      }
+    }
+
+    function clearData() {
+      const container = document.getElementById("dataContainer");
+      container.innerHTML = "";
+      container.style.display = "none";
+      document.getElementById("inputData").value = "";
+    }
+
+    // 關鍵字篩選功能
+    document.getElementById("inputData").addEventListener("input", function(e) {
+      const keyword = e.target.value.toUpperCase();
+      const filtered = carOptions.filter(opt => opt.toUpperCase().includes(keyword));
+      updateDatalist(filtered);
+    });
+
+    function updateDatalist(options) {
+      const datalist = document.getElementById("carList");
+      datalist.innerHTML = "";
+      options.forEach(opt => {
+        const el = document.createElement("option");
+        el.value = opt;
+        datalist.appendChild(el);
+      });
+    }
+  </script>
+</body>
+</html>
