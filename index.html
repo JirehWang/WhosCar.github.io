@@ -41,7 +41,7 @@
 
     /* 相機 Modal */
     #camera-modal { display: none; position: fixed; inset: 0; background: #000; z-index: 9999; flex-direction: column; }
-    .video-wrapper { position: relative; flex: 1; overflow: hidden; width: 100%; background: #000; }
+    .video-wrapper { position: relative; flex: 1; overflow: hidden; width: 100%; background: #000; touch-action: none; /* 防止干擾兩指縮放 */ }
     #video { width: 100%; height: 100%; object-fit: cover; }
     .scanner-overlay { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 75vw; height: 22vw; max-width: 350px; max-height: 100px; border: 3px solid #4fffb0; border-radius: 8px; box-shadow: 0 0 0 4000px rgba(0,0,0,0.6); z-index: 5; pointer-events: none; }
     .scanner-overlay::before { content: '請將車牌對準框內'; position: absolute; top: -35px; left: 0; width: 100%; text-align: center; color: #4fffb0; font-weight: bold; font-size: 16px; }
@@ -78,7 +78,7 @@
     <button class="btn-ocr-main" onclick="openCameraModal('search')">📸 開啟鏡頭掃描車牌</button>
 
     <div class="search-group">
-      <input type="text" id="inputData" list="carList" placeholder="手動輸入車號 (輸入4碼即自動搜尋)" autocomplete="off">
+      <input type="text" id="inputData" list="carList" placeholder="手動輸入車號 (輸入4碼即自動搜尋)" autocomplete="off" inputmode="text" autocapitalize="characters">
       <datalist id="carList"></datalist>
     </div>
 
@@ -91,11 +91,13 @@
     <div class="video-wrapper">
       <video id="video" autoplay playsinline></video>
       <div class="scanner-overlay"></div>
+      
       <div id="zoom-control">
         <span>➖</span>
         <input type="range" id="zoom-slider" min="1" max="3" step="0.1" value="1">
         <span>➕</span>
       </div>
+      
       <div id="switch-btn" onclick="switchCamera()">
         <svg viewBox="0 0 24 24"><path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z"/></svg>
       </div>
@@ -119,7 +121,7 @@
       <input type="text" id="adminName" class="input-field" placeholder="請輸入姓名" inputmode="text">
       
       <div style="font-size:13px; margin-bottom:6px; color:#555; font-weight:bold;">聯絡電話</div>
-      <input type="tel" id="adminTel" class="input-field" placeholder="請輸入電話 (選填)" inputmode="text">
+      <input type="tel" id="adminTel" class="input-field" placeholder="請輸入電話 (選填)">
       
       <button class="btn-submit-save" id="saveBtn" onclick="saveData()">💾 儲存至資料庫</button>
     </div>
@@ -207,10 +209,71 @@
       videoTrack = currentStream.getVideoTracks()[0];
       const cap = videoTrack.getCapabilities();
       const zc = document.getElementById('zoom-control'), sl = document.getElementById('zoom-slider');
+      
       if (cap.zoom) {
-          zc.style.display = 'flex'; sl.min = cap.zoom.min; sl.max = cap.zoom.max; sl.step = cap.zoom.step; sl.value = videoTrack.getSettings().zoom || 1;
+          zc.style.display = 'flex'; 
+          sl.min = cap.zoom.min; 
+          sl.max = cap.zoom.max; 
+          sl.step = cap.zoom.step; 
+          sl.value = videoTrack.getSettings().zoom || 1;
           sl.oninput = (e) => videoTrack.applyConstraints({ advanced: [{ zoom: parseFloat(e.target.value) }] }).catch(()=>{});
-      } else { zc.style.display = 'none'; }
+          
+          // 啟動兩指縮放監聽器
+          setupPinchToZoom(cap.zoom.min, cap.zoom.max);
+      } else { 
+          zc.style.display = 'none'; 
+      }
+    }
+
+    // =====================================
+    // 🌟 兩指縮放 (Pinch-to-Zoom) 演算法
+    // =====================================
+    function setupPinchToZoom(minZoom, maxZoom) {
+        const videoWrapper = document.querySelector('.video-wrapper');
+        let initialPinchDistance = null;
+        let initialZoom = 1;
+
+        videoWrapper.addEventListener('touchstart', (e) => {
+            if (e.touches.length === 2 && videoTrack) {
+                // 防止整個網頁被原生的手勢放大
+                if(e.cancelable) e.preventDefault(); 
+                
+                initialPinchDistance = Math.hypot(
+                    e.touches[0].clientX - e.touches[1].clientX,
+                    e.touches[0].clientY - e.touches[1].clientY
+                );
+                initialZoom = parseFloat(videoTrack.getSettings().zoom) || 1;
+            }
+        }, { passive: false });
+
+        videoWrapper.addEventListener('touchmove', (e) => {
+            if (e.touches.length === 2 && videoTrack && initialPinchDistance) {
+                if(e.cancelable) e.preventDefault();
+                
+                const currentDistance = Math.hypot(
+                    e.touches[0].clientX - e.touches[1].clientX,
+                    e.touches[0].clientY - e.touches[1].clientY
+                );
+
+                const zoomFactor = currentDistance / initialPinchDistance;
+                let newZoom = initialZoom * zoomFactor;
+
+                // 確保倍率不超過硬體極限
+                newZoom = Math.max(minZoom, Math.min(newZoom, maxZoom));
+
+                // 執行相機變焦
+                videoTrack.applyConstraints({ advanced: [{ zoom: newZoom }] }).catch(()=>{});
+                
+                // 🌟 神奇連動：讓下方的拉桿跟著兩指縮放一起移動！
+                document.getElementById('zoom-slider').value = newZoom;
+            }
+        }, { passive: false });
+
+        videoWrapper.addEventListener('touchend', (e) => {
+            if (e.touches.length < 2) {
+                initialPinchDistance = null;
+            }
+        });
     }
 
     async function handleCaptureClick() {
@@ -247,7 +310,7 @@
             const data = await response.json();
             if (data.lines && data.lines.length > 0) {
                 const fullText = data.lines.map(l => l.text).join(" ").toUpperCase().replace(/\s+/g, '');
-                resolve(fullText); // 回傳所有捕捉到的字元，交給最強的四碼邏輯處理
+                resolve(fullText); 
             } else resolve(null);
           } catch (err) { resolve(null); }
         }, 'image/jpeg', 0.95);
@@ -273,7 +336,7 @@
     }
 
     // =====================================
-    // 🌟 核心：「連續四碼」子字串比對演算法
+    // 「連續四碼」子字串比對演算法
     // =====================================
     function getLongestCommonSubstring(str1, str2) {
       let maxLen = 0;
@@ -304,16 +367,12 @@
         let row = carDatabase[i];
         let dbPlate = String(row[1]).toUpperCase().replace(/[^A-Z0-9]/g, "");
         
-        // 1. 完全命中
         if (dbPlate === cleanInput) { 
            matches.push({ data: row, matchLen: 100 }); 
            continue; 
         }
         
-        // 2. 尋找最長連續相同字元
         let lcs = getLongestCommonSubstring(dbPlate, cleanInput);
-        
-        // 如果輸入的字串夠長，要求至少連續對 4 個字才算可能候選；如果輸入少於 4 碼，則必須全對
         let threshold = cleanInput.length < 4 ? cleanInput.length : 4;
         
         if (lcs >= threshold) {
@@ -321,7 +380,6 @@
         }
       }
 
-      // 排序：連續相同字元越多的排越前面，若相同則字數長度越接近的排越前面
       matches.sort((a, b) => {
         if (b.matchLen !== a.matchLen) return b.matchLen - a.matchLen;
         let aDiff = Math.abs(String(a.data[1]).replace(/[^A-Z0-9]/g, "").length - cleanInput.length);
@@ -329,12 +387,12 @@
         return aDiff - bDiff;
       });
 
-      const topMatches = matches.slice(0, 5).map(m => m.data); // 取前5名可能的候選名單
+      const topMatches = matches.slice(0, 5).map(m => m.data); 
       renderUI(topMatches);
     }
 
     // =====================================
-    // 🌟 動態 UI：單一結果 vs 多筆選擇
+    // 動態 UI：單一結果 vs 多筆選擇
     // =====================================
     function renderUI(data) {
       const container = document.getElementById('dataContainer');
@@ -346,17 +404,13 @@
           return; 
       }
 
-      // 情境 A：只有一台車完美符合條件 -> 直接展開
       if (data.length === 1) {
           tip.innerText = "✅ 找到唯一相符車主"; tip.style.color = "var(--success)";
           container.innerHTML = createFullCardHTML(data[0], true);
-      } 
-      // 情境 B：有多台車都有相同的 4 碼 (例如 1234) -> 列出清單讓使用者點
-      else {
+      } else {
           tip.innerText = `💡 找到 ${data.length} 筆可能資料，請點選正確車牌：`; tip.style.color = "var(--primary)";
           let listHTML = `<div class="candidate-list">`;
           data.forEach((item) => {
-              // 把資料轉成字串傳給點擊事件
               const jsonStr = encodeURIComponent(JSON.stringify(item));
               listHTML += `
                 <div class="candidate-item" onclick="selectCandidate('${jsonStr}')">
@@ -372,7 +426,6 @@
       setTimeout(() => { document.getElementById('dataContainer').scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 100);
     }
 
-    // 使用者在清單中點擊正確車牌後，直接替換成展開卡片
     window.selectCandidate = function(jsonStr) {
         const item = JSON.parse(decodeURIComponent(jsonStr));
         const container = document.getElementById('dataContainer');
