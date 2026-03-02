@@ -3,8 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-  <title>車主管理系統 Pro - 透明視窗版</title>
-  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <title>車主管理系統 Pro - HF 雲端辨識版</title>
   <style>
     :root { --primary: #2196F3; --accent: #ff4081; --success: #4CAF50; --admin: #607d8b; --bg: #f4f7f9; }
     body { font-family: "Microsoft JhengHei", sans-serif; margin: 0; background: var(--bg); color: #333; }
@@ -17,44 +16,47 @@
       width: 80%; height: 80px; border: 3px solid var(--accent); border-radius: 12px;
       box-shadow: 0 0 0 1000px rgba(0,0,0,0.5); z-index: 5; pointer-events: none;
     }
+    
+    /* 變焦拉桿控制區 */
+    #zoom-control {
+      position: absolute; bottom: 15px; left: 15px; right: 70px; display: none;
+      align-items: center; gap: 10px; z-index: 10; background: rgba(0,0,0,0.4); 
+      padding: 5px 12px; border-radius: 20px; color: white; backdrop-filter: blur(5px);
+    }
+    #zoom-control input { flex: 1; accent-color: var(--accent); }
+
     #switch-btn {
       position: absolute; bottom: 15px; right: 15px; width: 45px; height: 45px;
       background: rgba(255, 255, 255, 0.3); border-radius: 50%; display: flex;
-      align-items: center; justify-content: center; z-index: 10; backdrop-filter: blur(5px);
+      align-items: center; justify-content: center; z-index: 10; backdrop-filter: blur(5px); cursor: pointer;
     }
     #switch-btn svg { fill: white; width: 22px; }
 
     /* 面板與搜尋 */
     .panel { background: white; padding: 20px; border-radius: 24px 24px 0 0; margin-top: -24px; position: relative; z-index: 10; min-height: 65vh; box-shadow: 0 -5px 15px rgba(0,0,0,0.1); }
     #status-tip { font-size: 13px; font-weight: bold; color: #777; text-align: center; margin-bottom: 15px; min-height: 18px; }
-    .btn-ocr-main { width: 100%; background: linear-gradient(135deg, #ff4081, #f50057); color: white; border: none; padding: 15px; border-radius: 14px; font-size: 18px; font-weight: bold; margin-bottom: 20px; box-shadow: 0 4px 12px rgba(245,0,87,0.3); }
+    .btn-ocr-main { width: 100%; background: linear-gradient(135deg, #ff4081, #f50057); color: white; border: none; padding: 15px; border-radius: 14px; font-size: 18px; font-weight: bold; margin-bottom: 20px; box-shadow: 0 4px 12px rgba(245,0,87,0.3); cursor: pointer; }
     
     .search-group { display: flex; gap: 8px; margin-bottom: 15px; }
-    input { flex: 1; padding: 12px; border: 2px solid #eee; border-radius: 10px; font-size: 16px; outline: none; }
-    .btn-search { background: var(--primary); color: white; border: none; padding: 0 18px; border-radius: 10px; font-weight: bold; }
+    .search-group input { flex: 1; padding: 12px; border: 2px solid #eee; border-radius: 10px; font-size: 16px; outline: none; }
+    .btn-search { background: var(--primary); color: white; border: none; padding: 0 18px; border-radius: 10px; font-weight: bold; cursor: pointer; }
 
     /* 結果顯示 */
     #dataContainer { display: none; margin-bottom: 20px; }
     .card { background: #fff; border: 1px solid #ddd; border-radius: 14px; padding: 15px; margin-bottom: 12px; position: relative; }
     .best { border: 2px solid var(--primary); background: #e3f2fd; }
-    .btn-edit-small { margin-top: 10px; background: #fff; border: 1px solid #ff9800; color: #ff9800; padding: 5px 12px; border-radius: 6px; font-size: 13px; font-weight: bold; }
+    .btn-edit-small { margin-top: 10px; background: #fff; border: 1px solid #ff9800; color: #ff9800; padding: 5px 12px; border-radius: 6px; font-size: 13px; font-weight: bold; cursor: pointer; }
 
-    /* --- 重點修正：全透明彈窗樣式 --- */
+    /* 全透明彈窗樣式 */
     .modal-overlay { 
       position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
-      background: transparent; /* 改為全透明，不擋鏡頭 */
-      display: none; z-index: 2000; 
-      align-items: center; justify-content: center;
-      pointer-events: none; /* 讓點擊可以穿透到底層，但內容區會改回來 */
+      background: transparent; display: none; z-index: 2000; 
+      align-items: center; justify-content: center; pointer-events: none;
     }
     .modal-content { 
       background: white; width: 90%; max-width: 400px; padding: 25px; 
-      border-radius: 20px; position: relative; 
-      animation: slideUp 0.3s ease-out;
-      pointer-events: auto; /* 恢復彈窗內的點擊功能 */
-      /* 強化陰影，讓視窗在鏡頭前清晰可見 */
-      box-shadow: 0 10px 40px rgba(0,0,0,0.4), 0 0 0 1px rgba(0,0,0,0.1);
-      border: 1px solid #ccc;
+      border-radius: 20px; position: relative; animation: slideUp 0.3s ease-out;
+      pointer-events: auto; box-shadow: 0 10px 40px rgba(0,0,0,0.4), 0 0 0 1px rgba(0,0,0,0.1); border: 1px solid #ccc;
     }
     @keyframes slideUp { from { transform: translateY(50px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
     .modal-header { font-size: 18px; font-weight: bold; color: var(--admin); margin-bottom: 20px; text-align: center; }
@@ -71,6 +73,11 @@
   <div class="video-container">
     <video id="video" autoplay playsinline></video>
     <div class="scanner-overlay"></div>
+    <div id="zoom-control">
+      <span>➖</span>
+      <input type="range" id="zoom-slider" min="1" max="3" step="0.1" value="1">
+      <span>➕</span>
+    </div>
     <div id="switch-btn" onclick="switchCamera()">
       <svg viewBox="0 0 24 24"><path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z"/></svg>
     </div>
@@ -87,7 +94,6 @@
     </form>
 
     <div id="dataContainer"></div>
-
     <button onclick="openModal()" style="width:100%; background:#f1f1f1; border:1px solid #ddd; color:#666; padding:12px; border-radius:12px; font-weight:bold; cursor:pointer;">🛠️ 進入資料庫管理</button>
   </div>
 
@@ -95,20 +101,13 @@
     <div class="modal-content">
       <div class="modal-close" onclick="closeModal()">×</div>
       <div class="modal-header">建立 / 編輯車主資料</div>
-      
-      <button class="btn-scan-import" onclick="scanToForm()">
-        📷 掃描紅框內車牌並帶入
-      </button>
-
+      <button class="btn-scan-import" onclick="scanToForm()">📷 掃描紅框內車牌並帶入</button>
       <div style="font-size:14px; margin-bottom:5px;">車牌號碼<span style="color:red;">*</span></div>
-      <input type="text" id="adminPlate" placeholder="請輸入車號" style="width:100%; box-sizing:border-box; margin-bottom:15px;">
-      
+      <input type="text" id="adminPlate" placeholder="請輸入車號" style="width:100%; padding:10px; box-sizing:border-box; margin-bottom:15px; border:1px solid #ccc; border-radius:6px;">
       <div style="font-size:14px; margin-bottom:5px;">車主姓名<span style="color:red;">*</span></div>
-      <input type="text" id="adminName" placeholder="請輸入姓名" style="width:100%; box-sizing:border-box; margin-bottom:15px;">
-      
+      <input type="text" id="adminName" placeholder="請輸入姓名" style="width:100%; padding:10px; box-sizing:border-box; margin-bottom:15px; border:1px solid #ccc; border-radius:6px;">
       <div style="font-size:14px; margin-bottom:5px;">聯絡電話</div>
-      <input type="tel" id="adminTel" placeholder="請輸入電話 (選填)" style="width:100%; box-sizing:border-box; margin-bottom:20px;">
-      
+      <input type="tel" id="adminTel" placeholder="請輸入電話 (選填)" style="width:100%; padding:10px; box-sizing:border-box; margin-bottom:20px; border:1px solid #ccc; border-radius:6px;">
       <button class="btn-submit-save" id="saveBtn" onclick="saveData()">💾 儲存資料庫</button>
     </div>
   </div>
@@ -116,15 +115,24 @@
   <canvas id="cropCanvas"></canvas>
 
   <script>
-    const API_URL = "https://script.google.com/macros/s/AKfycbxOkoaNquIx_V8n_7eS_5ULmoqxPVly_Bezx9_QsmWSzNOcojrCI9Oa6UNd5hOD2euS/exec"; 
+    // =====================================
+    // API 設定區
+    // =====================================
+    const GAS_API_URL = "https://script.google.com/macros/s/AKfycbxOkoaNquIx_V8n_7eS_5ULmoqxPVly_Bezx9_QsmWSzNOcojrCI9Oa6UNd5hOD2euS/exec"; 
+    const HF_OCR_API = "https://jirehwang-ocr.hf.space/ocr"; 
+
     const video = document.getElementById('video');
     const canvas = document.getElementById('cropCanvas');
     const tip = document.getElementById('status-tip');
     
     let currentStream = null, cameraList = [], currentCameraIndex = 0, carOptions = [], searchTimer = null;
+    let videoTrack = null;
 
-    // 1. 初始化
+    // 1. 初始化相機與背景預熱
     window.onload = async () => {
+      // 🌟 網頁載入瞬間，立刻戳一下 HF 伺服器進行預熱
+      fetch("https://jirehwang-ocr.hf.space", { mode: 'no-cors' }).catch(() => {});
+
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ video: true });
         stream.getTracks().forEach(t => t.stop());
@@ -136,7 +144,7 @@
           startCamera();
         }
         fetchOptions();
-      } catch (e) { tip.innerText = "相機啟動失敗"; }
+      } catch (e) { tip.innerText = "⚠ 相機啟動失敗，請確認權限"; }
     };
 
     async function startCamera() {
@@ -146,10 +154,12 @@
           video: { deviceId: { exact: cameraList[currentCameraIndex].deviceId }, width: { ideal: 1280 }, height: { ideal: 720 } }
         });
         video.srcObject = currentStream;
+        setupZoomControl();
         tip.innerText = "✅ 系統就緒";
       } catch (e) {
         currentStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
         video.srcObject = currentStream;
+        setupZoomControl();
       }
     }
 
@@ -159,49 +169,99 @@
       startCamera();
     }
 
-    // 2. OCR 邏輯
-    async function performOCR() {
-      const ctx = canvas.getContext('2d');
-      const vW = video.videoWidth, vH = video.videoHeight;
-      const cropW = vW * 0.8, cropH = vH * 0.25; 
-      const startX = (vW - cropW) / 2, startY = (vH - cropH) / 2;
-      canvas.width = cropW; canvas.height = cropH;
-      ctx.drawImage(video, startX, startY, cropW, cropH, 0, 0, cropW, cropH);
-
-      const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      const d = imgData.data;
-      for (let i = 0; i < d.length; i += 4) {
-        const v = ((d[i] + d[i+1] + d[i+2]) / 3) < 125 ? 0 : 255;
-        d[i] = d[i+1] = d[i+2] = v;
+    function setupZoomControl() {
+      if (!currentStream) return;
+      videoTrack = currentStream.getVideoTracks()[0];
+      const capabilities = videoTrack.getCapabilities();
+      const zoomControl = document.getElementById('zoom-control');
+      const slider = document.getElementById('zoom-slider');
+      
+      if (capabilities.zoom) {
+          zoomControl.style.display = 'flex';
+          slider.min = capabilities.zoom.min;
+          slider.max = capabilities.zoom.max;
+          slider.step = capabilities.zoom.step;
+          slider.value = videoTrack.getSettings().zoom || 1;
+          slider.oninput = (e) => {
+              videoTrack.applyConstraints({ advanced: [{ zoom: parseFloat(e.target.value) }] })
+                        .catch(err => console.log("變焦失敗", err));
+          };
+      } else {
+          zoomControl.style.display = 'none';
       }
-      ctx.putImageData(imgData, 0, 0);
+    }
 
-      const { data: { text } } = await Tesseract.recognize(canvas, 'eng', { tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-' });
-      const match = text.toUpperCase().match(/[A-Z0-9]{2,4}-?[A-Z0-9]{2,4}/);
-      return match ? match[0] : null;
+    // =====================================
+    // 2. OCR 裁切與雲端辨識
+    // =====================================
+    async function performOCR() {
+      return new Promise((resolve) => {
+        const ctx = canvas.getContext('2d');
+        const vW = video.videoWidth, vH = video.videoHeight;
+        
+        // 擷取紅框範圍
+        const cropW = vW * 0.8, cropH = vH * 0.25; 
+        const startX = (vW - cropW) / 2, startY = (vH - cropH) / 2;
+        
+        canvas.width = cropW; 
+        canvas.height = cropH;
+        ctx.drawImage(video, startX, startY, cropW, cropH, 0, 0, cropW, cropH);
+
+        canvas.toBlob(async (blob) => {
+          if (!blob) { resolve(null); return; }
+          
+          const formData = new FormData();
+          formData.append('image', blob, 'plate.jpg');
+          formData.append('lang', 'en');
+
+          try {
+            const response = await fetch(HF_OCR_API, { method: 'POST', body: formData });
+            if (!response.ok) throw new Error("API 錯誤");
+            const data = await response.json();
+            
+            if (data.lines && data.lines.length > 0) {
+                const fullText = data.lines.map(l => l.text).join(" ").toUpperCase().replace(/\s+/g, '');
+                const match = fullText.match(/[A-Z0-9]{2,4}-?[A-Z0-9]{2,4}/);
+                resolve(match ? match[0] : fullText);
+            } else {
+                resolve(null);
+            }
+          } catch (err) {
+            console.error("OCR 失敗:", err);
+            resolve(null);
+          }
+        }, 'image/jpeg', 0.95);
+      });
     }
 
     async function captureAndSearch() {
-      tip.innerText = "⏳ 搜尋辨識中...";
+      tip.innerText = "⏳ 雲端 AI 辨識中...";
       const result = await performOCR();
       if (result) {
+        const searchVal = result.replace("-", "");
         document.getElementById('inputData').value = result;
-        executeSearch(result.replace("-", ""));
-      } else { tip.innerText = "❓ 請重新對準車牌"; }
+        executeSearch(searchVal);
+      } else { 
+        tip.innerText = "❓ 無法辨識，請拉近或對準車牌"; 
+      }
     }
 
     async function scanToForm() {
       const scanBtn = document.querySelector('.btn-scan-import');
-      scanBtn.innerText = "⏳ 辨識中...";
+      scanBtn.innerText = "⏳ 雲端 AI 辨識中...";
       const result = await performOCR();
       if (result) {
         document.getElementById('adminPlate').value = result;
         scanBtn.innerText = "✅ 帶入成功: " + result;
-      } else { scanBtn.innerText = "❌ 辨識失敗，請重試"; }
-      setTimeout(() => scanBtn.innerText = "📷 掃描紅框內車牌並帶入", 2000);
+      } else { 
+        scanBtn.innerText = "❌ 辨識失敗，請重試"; 
+      }
+      setTimeout(() => scanBtn.innerText = "📷 掃描紅框內車牌並帶入", 2500);
     }
 
-    // 3. 搜尋與資料
+    // =====================================
+    // 3. GAS 資料庫互動
+    // =====================================
     document.getElementById('inputData').addEventListener('input', (e) => {
       const val = e.target.value.toUpperCase();
       const filtered = carOptions.filter(o => o.toUpperCase().includes(val));
@@ -212,11 +272,11 @@
     });
 
     function executeSearch(q) {
-      tip.innerText = "🔍 搜尋中...";
-      fetch(`${API_URL}?action=getSearchResult&query=${q}`)
+      tip.innerText = "🔍 搜尋資料庫中...";
+      fetch(`${GAS_API_URL}?action=getSearchResult&query=${q}`)
         .then(res => res.json())
         .then(data => { updateUI(data); tip.innerText = "✅ 搜尋完成"; })
-        .catch(() => tip.innerText = "❌ 連線失敗");
+        .catch(() => tip.innerText = "❌ 網路連線失敗");
     }
 
     function updateUI(data) {
@@ -236,7 +296,6 @@
       });
     }
 
-    // 4. 彈窗邏輯
     function openModal(p='', n='', t='') {
       document.getElementById('modalOverlay').style.display = 'flex';
       document.getElementById('adminPlate').value = p;
@@ -252,7 +311,7 @@
       if (!p || !n) { alert("車號與姓名為必填！"); return; }
       const btn = document.getElementById('saveBtn');
       btn.innerText = "⏳ 儲存中..."; btn.disabled = true;
-      fetch(`${API_URL}?action=savePlate&plate=${encodeURIComponent(p)}&name=${encodeURIComponent(n)}&tel=${encodeURIComponent(t)}`)
+      fetch(`${GAS_API_URL}?action=savePlate&plate=${encodeURIComponent(p)}&name=${encodeURIComponent(n)}&tel=${encodeURIComponent(t)}`)
         .then(res => res.json())
         .then(res => {
           alert(res.message);
@@ -261,7 +320,7 @@
         .finally(() => { btn.innerText = "💾 儲存資料庫"; btn.disabled = false; });
     }
 
-    function fetchOptions() { fetch(`${API_URL}?action=getCarOptions`).then(r => r.json()).then(o => { carOptions = o; updateDatalist(o); }); }
+    function fetchOptions() { fetch(`${GAS_API_URL}?action=getCarOptions`).then(r => r.json()).then(o => { carOptions = o; updateDatalist(o); }); }
     function updateDatalist(o) { document.getElementById('carList').innerHTML = o.map(opt => `<option value="${opt}">`).join(""); }
     function handleManualSearch(e) { e.preventDefault(); executeSearch(document.getElementById('inputData').value.toUpperCase().replace("-","")); }
   </script>
