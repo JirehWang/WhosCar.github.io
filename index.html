@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-  <title>車主管理系統 Pro - 四碼鎖定版</title>
+  <title>車牌管理系統 Pro</title>
   <style>
     :root { --primary: #2196F3; --accent: #ff4081; --success: #4CAF50; --admin: #607d8b; --bg: #f4f7f9; }
     body { font-family: "Microsoft JhengHei", sans-serif; margin: 0; background: var(--bg); color: #333; }
@@ -65,7 +65,7 @@
 <body>
 
   <div class="header-banner">
-    <h1>車主管理系統 Pro</h1>
+    <h1>車牌管理系統 Pro</h1>
   </div>
 
   <div class="panel">
@@ -107,12 +107,16 @@
       <div class="modal-close" onclick="closeDBModal()">×</div>
       <div class="modal-header">建立 / 編輯車主</div>
       <button class="btn-scan-import" onclick="openCameraModal('form')">📷 開啟鏡頭掃描並帶入</button>
+      
       <div style="font-size:13px; margin-bottom:6px; color:#555; font-weight:bold;">車牌號碼<span style="color:red;">*</span></div>
-      <input type="text" id="adminPlate" class="input-field" placeholder="請輸入車號">
+      <input type="text" id="adminPlate" class="input-field" placeholder="請輸入車號 (如 ABC-1234)" inputmode="text" autocapitalize="characters">
+      
       <div style="font-size:13px; margin-bottom:6px; color:#555; font-weight:bold;">車主姓名<span style="color:red;">*</span></div>
-      <input type="text" id="adminName" class="input-field" placeholder="請輸入姓名">
+      <input type="text" id="adminName" class="input-field" placeholder="請輸入姓名" inputmode="text">
+      
       <div style="font-size:13px; margin-bottom:6px; color:#555; font-weight:bold;">聯絡電話</div>
       <input type="tel" id="adminTel" class="input-field" placeholder="請輸入電話 (選填)">
+      
       <button class="btn-submit-save" id="saveBtn" onclick="saveData()">💾 儲存至資料庫</button>
     </div>
   </div>
